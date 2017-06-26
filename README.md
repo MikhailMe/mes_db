@@ -260,3 +260,46 @@
 * Поплавков Михаил
 * Медведев Михаил
 * Тузов Григорий
+
+
+## Схема с двумя бд
+
+* в одной базе данных - "СООБЩЕНИЯ" храним сообщения, в другой - "OTHERS" всё остальное (users, chats, users_chats)
+* нет целостности по сообщениям: схема допускает то, что в сообщении может быть ссылка на несуществующего пользователя или чат, то есть на сообщение не накладывается никаких дополнительных ограничений
+* таким образом можем выполнить шардирование, то есть разделить базу данных "СООБЩЕНИЯ" на несколько шардов
+* если происходит измениние в любой таблице из "OTHERS" затрагивающее бд, в которой хранятся сообщения, то отправляем запрос в эту бд и записываем его в лог, а также ждём ответ, чтобы убдеиться, что всё хорошо. Если бд упала, тогда после восстановления смотрим в лог и отправляем те запросы, которые были отправлены, но не были выполнены. (или по истечению заданного таймаута отправляем повторные запросы)
+* как вариант, старые сообщения можно перенести на дешёвую машину, обладующую малыми мощностями (старые сообщения - к ним редко идут запросы)
+
+## База данных с сообщениями
+<code>
+<pre>CREATE TABLE messages (
+  id        BIGSERIAL PRIMARY KEY,
+  chat_id   BIGINT,
+  sender_id BIGINT,
+  text      TEXT                     NOT NULL,
+  time      TIMESTAMP WITH TIME ZONE NOT NULL
+);
+</pre>
+</code>
+
+## База данных с остальными таблицами
+<code>
+<pre>CREATE TABLE users (
+  id       BIGSERIAL PRIMARY KEY,
+  login    VARCHAR(30) NOT NULL UNIQUE,
+  password INT         NOT NULL,
+  about    TEXT
+);
+
+CREATE TABLE chats (
+  id   BIGSERIAL PRIMARY KEY,
+  name VARCHAR(50)
+);
+
+CREATE TABLE users_chats (
+  chat_id BIGINT NOT NULL REFERENCES chats (id),
+  user_id BIGINT NOT NULL REFERENCES users (id),
+  CONSTRAINT users_chats_unique UNIQUE (chat_id, user_id)
+);
+</pre>
+</code>
